@@ -1,0 +1,15 @@
+# Environment
+.env
+
+# Input/Output data (regenerated each run)
+01-diary/
+02-fragment/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+
+# OS
+.DS_Store
