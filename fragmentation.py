@@ -153,24 +153,9 @@ def main():
         content = frag.get("content", "").strip()
         meaningless = frag.get("meaningless", False)
 
-        # 跳过空内容
+        # 空内容跳过
         if not content:
             log_lines.append(f"  ! 跳过（空内容）: {title}")
-            continue
-
-        # 检查双链：至少要有一个 [[ ]]
-        brackets = re.findall(r"\[\[([^\]]+)\]\]", content)
-        if not brackets:
-            mean_num = len(meaningless_list) + 1
-            mean_title = f"{diary_date.replace('-','')}-{mean_num:03d}"
-            body = render_fragment(
-                template_text, mean_title, "无意义",
-                content, diary_date, today,
-            )
-            out_path = mean_dir / f"{mean_title}.md"
-            out_path.write_text(body, encoding="utf-8")
-            log_lines.append(f"  ! 跳过（无双链）: {title} — {content[:40]}")
-            meaningless_list.append(mean_title)
             continue
 
         # 模糊或无意义 → Meaningless

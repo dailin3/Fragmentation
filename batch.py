@@ -109,18 +109,8 @@ async def process_one(
             content = frag.get("content", "").strip()
             meaningless = frag.get("meaningless", False)
 
+            # 空内容跳过
             if not content:
-                skipped_count += 1
-                continue
-
-            # 无双链 → Meaningless
-            brackets = re.findall(r"\[\[([^\]]+)\]\]", content)
-            if not brackets:
-                mean_counter += 1
-                mean_title = f"{diary_date.replace('-','')}-{mean_counter:03d}"
-                body = render_fragment(template_text, mean_title, "无意义",
-                                       content, diary_date, today)
-                (MEAN_DIR / f"{mean_title}.md").write_text(body, encoding="utf-8")
                 skipped_count += 1
                 continue
 
