@@ -151,7 +151,6 @@ def main():
         title = frag.get("title", "").strip()
         keyword = frag.get("keyword", "").strip()
         content = frag.get("content", "").strip()
-        dup = frag.get("duplicate", False)
         meaningless = frag.get("meaningless", False)
 
         # 跳过空内容
@@ -174,7 +173,7 @@ def main():
             meaningless_list.append(mean_title)
             continue
 
-        # 模糊或无意义 → Meaningless（用日期+序号命名）
+        # 模糊或无意义 → Meaningless
         is_bad = meaningless or title in VAGUE or any(v in title for v in VAGUE)
         if is_bad:
             mean_num = len(meaningless_list) + 1
@@ -193,7 +192,7 @@ def main():
         if not keyword:
             keyword = title
 
-        # 去重文件名
+        # 文件名去重
         base = sanitize(title)
         final_title = base
         n = 1
@@ -209,8 +208,7 @@ def main():
         out_path = frag_dir / f"{final_title}.md"
         out_path.write_text(body, encoding="utf-8")
 
-        dup_mark = " [重复]" if dup else ""
-        log_lines.append(f"  → {final_title}{dup_mark}")
+        log_lines.append(f"  → {final_title}")
         written.append(out_path)
 
     log_lines.append(f"📊 共 {total} 个片段 → 写入 {len(written)} 个 | 跳过 {len(meaningless_list)} 个（无意义/模糊）")
