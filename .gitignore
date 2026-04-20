@@ -4,6 +4,7 @@
 # Input/Output data (regenerated each run)
 01-diary/
 02-fragment/
+logs/
 
 # Python
 __pycache__/
@@ -13,3 +14,4 @@ __pycache__/
 
 # OS
 .DS_Store
+Meaningless/

@@ -2,7 +2,7 @@
 origin: "{{DATE}}"
 tags:
   - "#fragment"
-  - "#{{THEME}}"
+  - "#{{KEYWORD}}"
 created: {{NOW-DATE}}
 published:
 ---
