@@ -3,7 +3,7 @@
 Batch Fragmentation: 批量并发处理 01-diary/ 下所有日记。
 - asyncio + httpx 并发调用 DeepSeek API
 - 每篇日记记录耗时（毫秒）
-- 输出 JSONL 日志，便于后续统计
+- 输出 JSONL 日志
 """
 import asyncio
 import json
@@ -17,14 +17,11 @@ import httpx
 ROOT = Path(__file__).parent
 DIARY_DIR = ROOT / "01-diary"
 FRAG_DIR = ROOT / "02-fragment"
-MEAN_DIR = ROOT / "Meaningless"
 LOG_DIR = ROOT / "logs"
 LOG_DIR.mkdir(exist_ok=True)
 
-VAGUE = {"未知", "模糊", "无主题", "待定", "无标题", "未定义", "无法归类"}
-
 # ─── 配置 ───
-CONCURRENCY = 5          # 并发数，可调
+CONCURRENCY = 5          # 并发数
 TIMESTAMP = datetime.now().strftime("%Y%m%d_%H%M%S")
 LOG_FILE = LOG_DIR / f"batch_{TIMESTAMP}.jsonl"
 
@@ -45,13 +42,17 @@ def sanitize(title: str) -> str:
 
 
 def render_fragment(template_text: str, title: str, keyword: str,
-                    content: str, diary_date: str, today: str) -> str:
-    return (template_text
+                    content: str, keywords: list, diary_date: str, today: str) -> str:
+    kw链 = " ".join(f"[[{k}]]" for k in keywords)
+    body = (template_text
             .replace("{{DATE}}", diary_date)
             .replace("{{NOW-DATE}}", today)
             .replace("{{THEME}}", title)
             .replace("{{KEYWORD}}", keyword)
             .replace("{{CONTENT}}", content))
+    if kw链:
+        body = body.rstrip() + "\n\n" + kw链
+    return body
 
 
 async def api_call(client: httpx.AsyncClient, prompt: str, env: dict) -> dict:
@@ -65,14 +66,20 @@ async def api_call(client: httpx.AsyncClient, prompt: str, env: dict) -> dict:
         "Content-Type": "application/json",
         "Authorization": f"Bearer {env['DEEPSEEK_API_KEY']}",
     }
-    resp = await client.post(env["DEEPSEEK_API_URL"], json=payload, headers=headers, timeout=120.0)
-    resp.raise_for_status()
-    outer = resp.json()
-    content_str = outer["choices"][0]["message"]["content"].strip()
-    if content_str.startswith("```"):
-        content_str = re.sub(r"^```(?:json)?\s*", "", content_str)
-        content_str = re.sub(r"\s*```$", "", content_str)
-    return json.loads(content_str)
+    for attempt in range(3):
+        resp = await client.post(env["DEEPSEEK_API_URL"], json=payload, headers=headers, timeout=120.0)
+        resp.raise_for_status()
+        outer = resp.json()
+        content_str = outer["choices"][0]["message"]["content"].strip()
+        if content_str.startswith("```"):
+            content_str = re.sub(r"^```(?:json)?\s*", "", content_str)
+            content_str = re.sub(r"\s*```$", "", content_str)
+        try:
+            return json.loads(content_str)
+        except json.JSONDecodeError as e:
+            if attempt == 2:
+                raise ValueError(f"JSON解析失败（3次）: {e}") from e
+            continue
 
 
 async def process_one(
@@ -87,7 +94,7 @@ async def process_one(
 
     try:
         diary_text = diary_path.read_text(encoding="utf-8")
-        prompt = f"{prompt_template.strip()}\n\n{diary_text}\n\n"
+        prompt = f"{prompt_template.strip()}\n\n{diary_text.strip()}"
 
         digits = "".join(c for c in diary_path.stem if c.isdigit())
         diary_date = (f"{digits[:4]}-{digits[4:6]}-{digits[6:8]}"
@@ -101,32 +108,24 @@ async def process_one(
         written_count = 0
         skipped_count = 0
         written_files = []
-        mean_counter = len(list(MEAN_DIR.glob(f"{diary_date.replace('-','')}-*.md")))
+        skipped_reasons = []
 
         for frag in fragments:
             title = frag.get("title", "").strip()
-            keyword = frag.get("keyword", "").strip()
+            keyword = frag.get("keyword", "").strip() or title
+            keywords = frag.get("keywords", [])
             content = frag.get("content", "").strip()
-            meaningless = frag.get("meaningless", False)
 
-            # 空内容跳过
             if not content:
                 skipped_count += 1
+                skipped_reasons.append(f"{title} (空内容)")
                 continue
 
-            # 模糊/无意义 → Meaningless
-            is_bad = meaningless or title in VAGUE or any(v in title for v in VAGUE)
-            if is_bad:
-                mean_counter += 1
-                mean_title = f"{diary_date.replace('-','')}-{mean_counter:03d}"
-                body = render_fragment(template_text, mean_title, "无意义",
-                                       content, diary_date, today)
-                (MEAN_DIR / f"{mean_title}.md").write_text(body, encoding="utf-8")
+            # content 必须是原文子串，不是 AI 幻觉
+            if content not in diary_text:
                 skipped_count += 1
+                skipped_reasons.append(f"{title} (非原文)")
                 continue
-
-            if not keyword:
-                keyword = title
 
             base = sanitize(title)
             final_title = base
@@ -137,7 +136,7 @@ async def process_one(
             used.add(final_title)
 
             body = render_fragment(template_text, final_title, keyword,
-                                   content, diary_date, today)
+                                   content, keywords, diary_date, today)
             (FRAG_DIR / f"{final_title}.md").write_text(body, encoding="utf-8")
             written_count += 1
             written_files.append(final_title)
@@ -152,6 +151,7 @@ async def process_one(
             "elapsed_ms": round(elapsed_ms),
             "error": "",
             "written_files": written_files,
+            "skipped_reasons": skipped_reasons,
         }
 
     except Exception as e:
@@ -165,6 +165,7 @@ async def process_one(
             "elapsed_ms": round(elapsed_ms),
             "error": str(e),
             "written_files": [],
+            "skipped_reasons": [],
         }
 
 
