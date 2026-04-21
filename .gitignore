@@ -1,6 +1,9 @@
 # Environment
 .env
 
+# Database
+fragments.db
+
 # Input/Output data (regenerated each run)
 01-diary/
 02-fragment/
