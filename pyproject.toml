@@ -1,0 +1,22 @@
+[project]
+name = "fragmentation"
+version = "0.1.0"
+description = "日记到知识片段的自动提取系统"
+requires-python = ">=3.13"
+dependencies = [
+    "httpx>=0.28",
+    "mcp>=1.0",
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "pytest-cov>=5.0",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+
+[tool.uv]
+dev-dependencies = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "pytest-cov>=5.0",
+]
